@@ -1,0 +1,7 @@
+<form method="POST" class="register-form">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+                        <br />
+                        <br />
+    <button class="btn btn--radius-2 btn--blue" style="float: right;" type="submit" class="save btn btn-default">Register</button>
+</form>
