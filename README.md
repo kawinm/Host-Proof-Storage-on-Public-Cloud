@@ -3,5 +3,5 @@
 
 #Requirements
 Machine Learning - sklearn, numpy, pandas, pickle
-Encryption - pycryptodomex
+Encryption - pycryptodomex, pycryptodome, hashlib, base64
 Server- django
