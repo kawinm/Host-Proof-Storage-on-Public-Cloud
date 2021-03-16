@@ -4,3 +4,4 @@
 #Requirements
 Machine Learning - sklearn, numpy, pandas, pickle
 Encryption - pycryptodomex
+Server- django
