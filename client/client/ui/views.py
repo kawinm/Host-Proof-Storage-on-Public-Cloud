@@ -5,6 +5,7 @@ from django.http import HttpResponse, HttpResponseRedirect
 
 from .forms import RegisterForm, LoginForm, UploadFileForm
 from .elgamal import *
+from .models import User
 
 import numpy as np # linear algebra
 import pandas as pd
@@ -16,6 +17,8 @@ import hashlib
 from Cryptodome.Cipher import AES
 import os
 from Cryptodome.Random import get_random_bytes
+
+from math import acos, degrees
 
 def s1(request):
     g4powg2powP = modexp(request['g4'], request['g2powP'], request['p'])
@@ -60,6 +63,22 @@ def s1(request):
     print('B ', B)
     print('Omega ', omega)
 
+    centroid = [0,0,0]
+    for i in range(3):
+        centroid[i] = ( vertex[i] + vertex[i+3] + vertex[i+6] + vertex[i+9] ) /4
+
+    line1 = ((vertex[-1] **2) + (vertex[-2] **2) + (vertex[-3] ** 2)) ** (1/2)
+    line2_points = [0,0,0]
+    for i in range(3):
+        line2_points[i] = (vertex[i+3] + vertex[i+6] + vertex[i+9] ) /3
+    line2 = ((line2_points[-1] **2) + (line2_points[-2] **2) + (line2_points[-3] ** 2)) ** (1/2)
+    
+    print(line1, line2, "slope", line1/line2)
+    if line1/line2 > 1:
+        theta = degrees(acos(line1/line2 -1))
+    else:
+        theta = degrees(acos(line1/line2))
+    print("Theta", theta)
 
 def index(request):
     if request.method == "POST":
@@ -71,7 +90,15 @@ def index(request):
 
             res = generate_keys(password)           
 
-            s1(res)
+            try:
+                user = User(user_name=username, p=res['p'], g1=res['g1'], g2=res['g2'])
+                user.save()
+
+                s1(res)
+            except:
+                print("Username already exists")
+            
+            
             
             #Sending confirmation mail 
             """ current_site = get_current_site(request)
@@ -96,6 +123,32 @@ def index(request):
     else:
         form = RegisterForm()
         return render(request, 'ui/index.html', {'form': form})
+
+def login(request):
+    if request.method == "POST":
+        form = LoginForm(request.POST)
+
+        if form.is_valid():
+            username = form.cleaned_data['user_name']
+            password = form.cleaned_data['password']
+
+            #user = User.objects.filter(user_name=username)
+            user = User.objects.get(user_name=username)
+            p = user.p 
+            g1= user.g1 
+            g2 = user.g2
+            print("Prime", user.p)
+            print("G1", user.g1) 
+            print("G2", user.g2)  
+
+            return redirect('ui:reg')
+        else:
+            message = 'Username is already registered.'
+            form = LoginForm()
+            return render(request, 'ui/login.html', {'form': form, 'message':message})
+    else:
+        form = LoginForm()
+        return render(request, 'ui/login.html', {'form': form})
 
 def handle_uploaded_file(f):
     df = pd.read_csv(f)
