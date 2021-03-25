@@ -64,8 +64,8 @@ def s1(request, username):
     print('Omega ', omega)
     o = ""
     for i in omega:
-        o += i
-    omega = 0
+        o += str(i[0])
+    omega = o
 
     centroid = [0,0,0]
     for i in range(3):
@@ -134,8 +134,7 @@ def index(request):
 def authenticate(request):
     serv = Server.objects.get(user_name=request['username'])
 
-    g2powP = modexp(int(request['g2']), int(request['P']), int(request['p']))
-    g4powg2powP = modexp(int(serv.g4), g2powP, int(request['p']))
+    g4powg2powP = modexp(int(serv.g4), int(request['g2powP']), int(request['p']))
     g4pow2powP_str = str(g4powg2powP)
     length = len(g4pow2powP_str)
     length_for_x = length // 9
@@ -178,8 +177,8 @@ def authenticate(request):
     print('Omega ', omega)
     o = ""
     for i in omega:
-        o += i
-    omega = 0
+        o += str(i[0])
+    omega = o
 
     centroid = [0,0,0]
     for i in range(3):
@@ -222,12 +221,14 @@ def login(request):
             print("G1", user.g1) 
             print("G2", user.g2)  
 
+            g2powP = modexp(int(g2), int(P), int(p))
             res = {
                 'P': P,
                 'p': p,
                 'g1': g1,
                 'g2': g2,
-                'username': username
+                'username': username,
+                'g2powP': g2powP
             }
             authenticate(res)
 
