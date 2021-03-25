@@ -5,7 +5,7 @@ from django.http import HttpResponse, HttpResponseRedirect
 
 from .forms import RegisterForm, LoginForm, UploadFileForm
 from .elgamal import *
-from .models import User
+from .models import User, Server
 
 import numpy as np # linear algebra
 import pandas as pd
@@ -20,7 +20,7 @@ from Cryptodome.Random import get_random_bytes
 
 from math import acos, degrees
 
-def s1(request):
+def s1(request, username):
     g4powg2powP = modexp(request['g4'], request['g2powP'], request['p'])
     g4pow2powP_str = str(g4powg2powP)
     length = len(g4pow2powP_str)
@@ -62,6 +62,10 @@ def s1(request):
     print('A inv ', A_inv)
     print('B ', B)
     print('Omega ', omega)
+    o = ""
+    for i in omega:
+        o += i
+    omega = 0
 
     centroid = [0,0,0]
     for i in range(3):
@@ -80,6 +84,9 @@ def s1(request):
         theta = degrees(acos(line1/line2))
     print("Theta", theta)
 
+    serv = Server(user_name=username, p=request['p'], g1=request['g1'], g2=request['g2'], g3=request['g3'], g4=request['g4'], omega= omega, theta= theta)
+    serv.save()
+
 def index(request):
     if request.method == "POST":
         form = RegisterForm(request.POST)
@@ -94,11 +101,11 @@ def index(request):
                 user = User(user_name=username, p=res['p'], g1=res['g1'], g2=res['g2'])
                 user.save()
 
-                s1(res)
+                
             except:
                 print("Username already exists")
             
-            
+            s1(res, username)
             
             #Sending confirmation mail 
             """ current_site = get_current_site(request)
@@ -124,6 +131,79 @@ def index(request):
         form = RegisterForm()
         return render(request, 'ui/index.html', {'form': form})
 
+def authenticate(request):
+    serv = Server.objects.get(user_name=request['username'])
+
+    g2powP = modexp(int(request['g2']), int(request['P']), int(request['p']))
+    g4powg2powP = modexp(int(serv.g4), g2powP, int(request['p']))
+    g4pow2powP_str = str(g4powg2powP)
+    length = len(g4pow2powP_str)
+    length_for_x = length // 9
+    rem = length - length_for_x
+    vertex = []
+    for i in range(9):
+        x = int(g4pow2powP_str[i*length_for_x: i*length_for_x + length_for_x])
+        vertex.append(x)
+    u4 = int(g4pow2powP_str[length_for_x*9: ])
+    x4 = (vertex[0] + vertex[3] + vertex[6]) / 3 + u4
+    y4 = (vertex[1] + vertex[4] + vertex[7]) / 3 + u4
+    z4 = (vertex[2] + vertex[5] + vertex[8]) / 3 + u4
+    vertex.append(x4)
+    vertex.append(y4)
+    vertex.append(z4)
+    A = [[0,0,0],[0,0,0],[0,0,0]]
+    A[0][0] = vertex[3] - vertex[0]
+    A[1][0] = vertex[4] - vertex[1]
+    A[2][0] = vertex[5] - vertex[2]
+
+    A[0][1] = vertex[6] - vertex[3]
+    A[1][1] = vertex[7] - vertex[4]
+    A[2][1] = vertex[8] - vertex[5]
+
+    A[0][2] = x4 - vertex[6]
+    A[1][2] = y4 - vertex[7]
+    A[2][2] = z4 - vertex[8]
+
+    B = [[0],[0],[0]]
+    B[0][0] = ((vertex[3]+vertex[4]+vertex[5]) - (vertex[0]+vertex[1]+vertex[2])) * 0.5
+    B[1][0] = ((vertex[6]+vertex[7]+vertex[8]) - (vertex[3]+vertex[4]+vertex[5])) * 0.5
+    B[2][0] = ((x4+y4+z4) - (vertex[6]+vertex[7]+vertex[8])) * 0.5
+
+    A_inv = getMatrixInverse(A)
+
+    omega = matrix_multiplication(A_inv, B)
+    print('A ', A)
+    print('A inv ', A_inv)
+    print('B ', B)
+    print('Omega ', omega)
+    o = ""
+    for i in omega:
+        o += i
+    omega = 0
+
+    centroid = [0,0,0]
+    for i in range(3):
+        centroid[i] = ( vertex[i] + vertex[i+3] + vertex[i+6] + vertex[i+9] ) /4
+
+    line1 = ((vertex[-1] **2) + (vertex[-2] **2) + (vertex[-3] ** 2)) ** (1/2)
+    line2_points = [0,0,0]
+    for i in range(3):
+        line2_points[i] = (vertex[i+3] + vertex[i+6] + vertex[i+9] ) /3
+    line2 = ((line2_points[-1] **2) + (line2_points[-2] **2) + (line2_points[-3] ** 2)) ** (1/2)
+    
+    print(line1, line2, "slope", line1/line2)
+    if line1/line2 > 1:
+        theta = degrees(acos(line1/line2 -1))
+    else:
+        theta = degrees(acos(line1/line2))
+    print("Theta", theta)
+
+    if serv.omega == omega:
+        print("S1 success")
+
+    if serv.theta == str(theta):
+        print("S2 success")
+
 def login(request):
     if request.method == "POST":
         form = LoginForm(request.POST)
@@ -132,6 +212,7 @@ def login(request):
             username = form.cleaned_data['user_name']
             password = form.cleaned_data['password']
 
+            P = PasswordToHex(password)
             #user = User.objects.filter(user_name=username)
             user = User.objects.get(user_name=username)
             p = user.p 
@@ -140,6 +221,15 @@ def login(request):
             print("Prime", user.p)
             print("G1", user.g1) 
             print("G2", user.g2)  
+
+            res = {
+                'P': P,
+                'p': p,
+                'g1': g1,
+                'g2': g2,
+                'username': username
+            }
+            authenticate(res)
 
             return redirect('ui:reg')
         else:

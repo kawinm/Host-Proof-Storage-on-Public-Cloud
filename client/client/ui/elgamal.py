@@ -333,6 +333,13 @@ def decode(aiPlaintext, iNumBits):
 
 		return decodedText
 
+def PasswordToHex(P):
+	a = []
+	for i in P:
+		a.append(str(ord(i)))
+	pass_hex = int("".join(a))
+	return pass_hex
+	
 #generates public key K1 (p, g, h) and private key K2 (p, g, x)
 def generate_keys(P, iNumBits=256, iConfidence=32):
 		#p is the prime
@@ -340,10 +347,7 @@ def generate_keys(P, iNumBits=256, iConfidence=32):
 		#x is random in (0, p-1) inclusive
 		#h = g ^ x mod p
 		print("Password", P)
-		a = []
-		for i in P:
-			a.append(str(ord(i)))
-		a = int("".join(a))
+		a = PasswordToHex(P)
 		print("Pass", a)
 		p = find_prime(iNumBits, iConfidence)
 		print(len(str(p)))
