@@ -1,8 +1,4 @@
-
-<html>
-<head>
-    <style>
-    body {
+body {
     background-color: #f45b69;
     font-family: "Asap", sans-serif;
   }
@@ -125,18 +121,3 @@
     bottom: 10px;
     font-size: 12px;
   }
-    </style>
-</head>
-
-<body>
-    <div>
-        <form method="POST" class="login">
-                                {% csrf_token %}
-                                {{ form.as_p }}
-                                <br />
-                                <br />
-            <button class="btn btn--radius-2 btn--blue" style="float: right;" type="submit" class="save btn btn-default">Register</button>
-        </form>
-    </div>
-</body>
-</html>
