@@ -26,31 +26,29 @@ import json
 from azure.cosmos import exceptions, CosmosClient, PartitionKey
 from uuid import uuid4
 
-endpoint = "https://kawin.documents.azure.com:443/"
-key = 'U6VUfkGeu2vzNVKumpXsTWHkPyjbYi9ffmHmmsz9XUz6mqAwwcFTs7FAAzmb4ZF3SptDLFfs2vbCALrzimiJNQ=='
+def get_db_container():
+    endpoint = "https://kawin.documents.azure.com:443/"
+    key = 'U6VUfkGeu2vzNVKumpXsTWHkPyjbYi9ffmHmmsz9XUz6mqAwwcFTs7FAAzmb4ZF3SptDLFfs2vbCALrzimiJNQ=='
 
-client = CosmosClient(endpoint, key)
+    client = CosmosClient(endpoint, key)
 
-id = "hpsdb"
-try:
-    db = client.get_database_client(id)
-    print('Database with id \'{0}\' was found, it\'s link is {1}'.format(id, db.database_link))
+    id = "hpsdb"
+    try:
+        db = client.get_database_client(id)
+        print('Database with id \'{0}\' was found, it\'s link is {1}'.format(id, db.database_link))
 
-except exceptions.CosmosResourceNotFoundError:
-    print('A database with id \'{0}\' does not exist'.format(id))
+    except exceptions.CosmosResourceNotFoundError:
+        print('A database with id \'{0}\' does not exist'.format(id))
 
-id = "donor"
-try:
-    container = db.get_container_client(id)
-    print('Container with id \'{0}\' was found, it\'s link is {1}'.format(container.id, container.container_link))
+    id = "donor"
+    try:
+        container = db.get_container_client(id)
+        print('Container with id \'{0}\' was found, it\'s link is {1}'.format(container.id, container.container_link))
 
-except exceptions.CosmosResourceNotFoundError:
-    print('A container with id \'{0}\' does not exist'.format(id))
+    except exceptions.CosmosResourceNotFoundError:
+        print('A container with id \'{0}\' does not exist'.format(id))
 
-
-# Initialize the Cosmos client
-endpoint = "https://kawin.documents.azure.com:443/"
-key = 'U6VUfkGeu2vzNVKumpXsTWHkPyjbYi9ffmHmmsz9XUz6mqAwwcFTs7FAAzmb4ZF3SptDLFfs2vbCALrzimiJNQ=='
+    return container
 
 def index(request):
     if request.method == "POST":
@@ -259,6 +257,7 @@ def handle_uploaded_file(f, password):
                 data[col_names[j]] = str(df.at[i+1, col_names[j]])
         print(data)
         data["id"] = uuid4().hex
+        container = get_db_container()
         container.create_item(body=data)
     return df, r_pred, col_names
 
@@ -354,6 +353,7 @@ def find_donor(request):
 
             query = "SELECT * FROM c WHERE c.blood_group = '"+ blood_group +"' and c.district = '"+ city +"'"
 
+            container = get_db_container()
             password = "kawin"
             data = list(container.query_items(
                 query=query,
