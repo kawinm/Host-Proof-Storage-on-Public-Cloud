@@ -20,6 +20,9 @@ from Cryptodome.Random import get_random_bytes
 
 from math import acos, degrees
 
+import requests
+import json
+
 def s1(request, username):
     g4powg2powP = modexp(request['g4'], request['g2powP'], request['p'])
     g4pow2powP_str = str(g4powg2powP)
@@ -105,7 +108,15 @@ def index(request):
             except:
                 print("Username already exists")
             
-            s1(res, username)
+            #s1(res, username)
+            query = {
+                'g2powP': res['g2powP'],
+                'p': res['p'],
+                'name': "kawin"
+            }
+            print(query)
+            response = requests.get('http://localhost:7071/api/S1', json = query)
+            print(response.json()['name'])
             
             #Sending confirmation mail 
             """ current_site = get_current_site(request)

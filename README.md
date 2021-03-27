@@ -7,3 +7,4 @@ Encryption - pycryptodomex, pycryptodome
 Server- django
 pymongo, djangorestframework
 azure-cosmos
+requests
