@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect
 # Create your views here.
 from django.http import HttpResponse, HttpResponseRedirect
 
-from .forms import RegisterForm, LoginForm, UploadFileForm
+from .forms import RegisterForm, LoginForm, UploadFileForm, FindDonorForm
 from .elgamal import *
 from .models import User, Server
 
@@ -23,72 +23,34 @@ from math import acos, degrees
 import requests
 import json
 
-def s1(request, username):
-    g4powg2powP = modexp(request['g4'], request['g2powP'], request['p'])
-    g4pow2powP_str = str(g4powg2powP)
-    length = len(g4pow2powP_str)
-    length_for_x = length // 9
-    rem = length - length_for_x
-    vertex = []
-    for i in range(9):
-        x = int(g4pow2powP_str[i*length_for_x: i*length_for_x + length_for_x])
-        vertex.append(x)
-    u4 = int(g4pow2powP_str[length_for_x*9: ])
-    x4 = (vertex[0] + vertex[3] + vertex[6]) / 3 + u4
-    y4 = (vertex[1] + vertex[4] + vertex[7]) / 3 + u4
-    z4 = (vertex[2] + vertex[5] + vertex[8]) / 3 + u4
-    vertex.append(x4)
-    vertex.append(y4)
-    vertex.append(z4)
-    A = [[0,0,0],[0,0,0],[0,0,0]]
-    A[0][0] = vertex[3] - vertex[0]
-    A[1][0] = vertex[4] - vertex[1]
-    A[2][0] = vertex[5] - vertex[2]
+from azure.cosmos import exceptions, CosmosClient, PartitionKey
+from uuid import uuid4
 
-    A[0][1] = vertex[6] - vertex[3]
-    A[1][1] = vertex[7] - vertex[4]
-    A[2][1] = vertex[8] - vertex[5]
+endpoint = "https://kawin.documents.azure.com:443/"
+key = 'U6VUfkGeu2vzNVKumpXsTWHkPyjbYi9ffmHmmsz9XUz6mqAwwcFTs7FAAzmb4ZF3SptDLFfs2vbCALrzimiJNQ=='
 
-    A[0][2] = x4 - vertex[6]
-    A[1][2] = y4 - vertex[7]
-    A[2][2] = z4 - vertex[8]
+client = CosmosClient(endpoint, key)
 
-    B = [[0],[0],[0]]
-    B[0][0] = ((vertex[3]+vertex[4]+vertex[5]) - (vertex[0]+vertex[1]+vertex[2])) * 0.5
-    B[1][0] = ((vertex[6]+vertex[7]+vertex[8]) - (vertex[3]+vertex[4]+vertex[5])) * 0.5
-    B[2][0] = ((x4+y4+z4) - (vertex[6]+vertex[7]+vertex[8])) * 0.5
+id = "hpsdb"
+try:
+    db = client.get_database_client(id)
+    print('Database with id \'{0}\' was found, it\'s link is {1}'.format(id, db.database_link))
 
-    A_inv = getMatrixInverse(A)
+except exceptions.CosmosResourceNotFoundError:
+    print('A database with id \'{0}\' does not exist'.format(id))
 
-    omega = matrix_multiplication(A_inv, B)
-    print('A ', A)
-    print('A inv ', A_inv)
-    print('B ', B)
-    print('Omega ', omega)
-    o = ""
-    for i in omega:
-        o += str(i[0])
-    omega = o
+id = "donor"
+try:
+    container = db.get_container_client(id)
+    print('Container with id \'{0}\' was found, it\'s link is {1}'.format(container.id, container.container_link))
 
-    centroid = [0,0,0]
-    for i in range(3):
-        centroid[i] = ( vertex[i] + vertex[i+3] + vertex[i+6] + vertex[i+9] ) /4
+except exceptions.CosmosResourceNotFoundError:
+    print('A container with id \'{0}\' does not exist'.format(id))
 
-    line1 = ((vertex[-1] **2) + (vertex[-2] **2) + (vertex[-3] ** 2)) ** (1/2)
-    line2_points = [0,0,0]
-    for i in range(3):
-        line2_points[i] = (vertex[i+3] + vertex[i+6] + vertex[i+9] ) /3
-    line2 = ((line2_points[-1] **2) + (line2_points[-2] **2) + (line2_points[-3] ** 2)) ** (1/2)
-    
-    print(line1, line2, "slope", line1/line2)
-    if line1/line2 > 1:
-        theta = degrees(acos(line1/line2 -1))
-    else:
-        theta = degrees(acos(line1/line2))
-    print("Theta", theta)
 
-    serv = Server(user_name=username, p=request['p'], g1=request['g1'], g2=request['g2'], g3=request['g3'], g4=request['g4'], omega= omega, theta= theta)
-    serv.save()
+# Initialize the Cosmos client
+endpoint = "https://kawin.documents.azure.com:443/"
+key = 'U6VUfkGeu2vzNVKumpXsTWHkPyjbYi9ffmHmmsz9XUz6mqAwwcFTs7FAAzmb4ZF3SptDLFfs2vbCALrzimiJNQ=='
 
 def index(request):
     if request.method == "POST":
@@ -112,11 +74,14 @@ def index(request):
             query = {
                 'g2powP': res['g2powP'],
                 'p': res['p'],
-                'name': "kawin"
+                'username': username,
+                'g1': res['g1'],
+                'g2': res['g2'],
+                'func': 'register'
             }
             print(query)
             response = requests.get('http://localhost:7071/api/S1', json = query)
-            print(response.json()['name'])
+            print(response.json())
             
             #Sending confirmation mail 
             """ current_site = get_current_site(request)
@@ -142,78 +107,6 @@ def index(request):
         form = RegisterForm()
         return render(request, 'ui/index.html', {'form': form})
 
-def authenticate(request):
-    serv = Server.objects.get(user_name=request['username'])
-
-    g4powg2powP = modexp(int(serv.g4), int(request['g2powP']), int(request['p']))
-    g4pow2powP_str = str(g4powg2powP)
-    length = len(g4pow2powP_str)
-    length_for_x = length // 9
-    rem = length - length_for_x
-    vertex = []
-    for i in range(9):
-        x = int(g4pow2powP_str[i*length_for_x: i*length_for_x + length_for_x])
-        vertex.append(x)
-    u4 = int(g4pow2powP_str[length_for_x*9: ])
-    x4 = (vertex[0] + vertex[3] + vertex[6]) / 3 + u4
-    y4 = (vertex[1] + vertex[4] + vertex[7]) / 3 + u4
-    z4 = (vertex[2] + vertex[5] + vertex[8]) / 3 + u4
-    vertex.append(x4)
-    vertex.append(y4)
-    vertex.append(z4)
-    A = [[0,0,0],[0,0,0],[0,0,0]]
-    A[0][0] = vertex[3] - vertex[0]
-    A[1][0] = vertex[4] - vertex[1]
-    A[2][0] = vertex[5] - vertex[2]
-
-    A[0][1] = vertex[6] - vertex[3]
-    A[1][1] = vertex[7] - vertex[4]
-    A[2][1] = vertex[8] - vertex[5]
-
-    A[0][2] = x4 - vertex[6]
-    A[1][2] = y4 - vertex[7]
-    A[2][2] = z4 - vertex[8]
-
-    B = [[0],[0],[0]]
-    B[0][0] = ((vertex[3]+vertex[4]+vertex[5]) - (vertex[0]+vertex[1]+vertex[2])) * 0.5
-    B[1][0] = ((vertex[6]+vertex[7]+vertex[8]) - (vertex[3]+vertex[4]+vertex[5])) * 0.5
-    B[2][0] = ((x4+y4+z4) - (vertex[6]+vertex[7]+vertex[8])) * 0.5
-
-    A_inv = getMatrixInverse(A)
-
-    omega = matrix_multiplication(A_inv, B)
-    print('A ', A)
-    print('A inv ', A_inv)
-    print('B ', B)
-    print('Omega ', omega)
-    o = ""
-    for i in omega:
-        o += str(i[0])
-    omega = o
-
-    centroid = [0,0,0]
-    for i in range(3):
-        centroid[i] = ( vertex[i] + vertex[i+3] + vertex[i+6] + vertex[i+9] ) /4
-
-    line1 = ((vertex[-1] **2) + (vertex[-2] **2) + (vertex[-3] ** 2)) ** (1/2)
-    line2_points = [0,0,0]
-    for i in range(3):
-        line2_points[i] = (vertex[i+3] + vertex[i+6] + vertex[i+9] ) /3
-    line2 = ((line2_points[-1] **2) + (line2_points[-2] **2) + (line2_points[-3] ** 2)) ** (1/2)
-    
-    print(line1, line2, "slope", line1/line2)
-    if line1/line2 > 1:
-        theta = degrees(acos(line1/line2 -1))
-    else:
-        theta = degrees(acos(line1/line2))
-    print("Theta", theta)
-
-    if serv.omega == omega:
-        print("S1 success")
-
-    if serv.theta == str(theta):
-        print("S2 success")
-
 def login(request):
     if request.method == "POST":
         form = LoginForm(request.POST)
@@ -233,17 +126,21 @@ def login(request):
             print("G2", user.g2)  
 
             g2powP = modexp(int(g2), int(P), int(p))
-            res = {
-                'P': P,
-                'p': p,
-                'g1': g1,
-                'g2': g2,
+            query = {
+                'g2powP': g2powP,
                 'username': username,
-                'g2powP': g2powP
+                'func': 'login'
             }
-            authenticate(res)
+            print(query)
+            response = requests.get('http://localhost:7071/api/S1', json = query)
+            print(response.json())
 
-            return redirect('ui:reg')
+            if response.json()['msg'] == "success":
+                return redirect('ui:main')
+            else:
+                message = 'Wrong Username or Password'
+                form = LoginForm()
+                return render(request, 'ui/login.html', {'form': form, 'message':message})
         else:
             message = 'Username is already registered.'
             form = LoginForm()
@@ -252,8 +149,9 @@ def login(request):
         form = LoginForm()
         return render(request, 'ui/login.html', {'form': form})
 
-def handle_uploaded_file(f):
+def handle_uploaded_file(f, password):
     df = pd.read_csv(f)
+    print(type(df))
     row, col = df.shape 
     col_names = list(df.columns)
 
@@ -283,7 +181,7 @@ def handle_uploaded_file(f):
     le = LabelEncoder()
     le.fit([1, 2, 2, 6])
 
-    encdf = df
+    encdf = df.copy(deep=True)
     for i in col_names:
         if encdf[i].dtype == 'object':
             encdf[i] = le.fit_transform(df[i].astype('str'))
@@ -311,7 +209,7 @@ def handle_uploaded_file(f):
     print("[STATUS] Found Pattern based Sensitive data")
 
     X_pred = np.zeros([col, 6], dtype=int)
-
+    print(type(df))
     for i in range(col):
         for j in range(6):
             if j == 0:
@@ -343,24 +241,31 @@ def handle_uploaded_file(f):
     r_pred = loaded_model.predict(X_pred)
 
     print("[STATUS] Sensitivity Prediction Successfull")
-    return df, r_pred
 
-def upload_file(request):
-    if request.method == 'POST':
-        form = UploadFileForm(request.POST, request.FILES)
-        if form.is_valid():
-            df, sensitivity = handle_uploaded_file(request.FILES['file'])
-            sensi = "".join(map(str, sensitivity))
-            print(sensi)
-            encrypt(df, sensi)
-            return redirect('ui:encrypt', sensi)
-    else:
-        form = UploadFileForm()
-    return render(request, 'ui/upload.html', {'form': form})
+    salt = b"1234567890"
+    print(type(df))
+    # First let us encrypt secret message
+    for i in range(2):
+        data = {}
+        for j in range(len(col_names)):
+            if r_pred[j] == 1:
+                if col_names[j] == "id":
+                    encrypted = encrypt_message(df.at[i+1, col_names[j]], password, salt)
+                    data["did"] = encrypted
+                else:
+                    encrypted = encrypt_message(df.at[i+1, col_names[j]], password, salt)
+                    data[col_names[j]] = encrypted
+            else:
+                data[col_names[j]] = str(df.at[i+1, col_names[j]])
+        print(data)
+        data["id"] = uuid4().hex
+        container.create_item(body=data)
+    return df, r_pred, col_names
 
-def encrypt_message(plain_text, password):
+def encrypt_message(plain_text, password, salt):
+    plain_text = str(plain_text)
     # generate a random salt
-    salt = get_random_bytes(AES.block_size)
+    #salt = get_random_bytes(AES.block_size) 16
 
     # use the Scrypt KDF to get a private key from the password
     private_key = hashlib.scrypt(
@@ -377,6 +282,41 @@ def encrypt_message(plain_text, password):
         'nonce': b64encode(cipher_config.nonce).decode('utf-8'),
         'tag': b64encode(tag).decode('utf-8')
     }
+
+def encrypt(df, sensitivity, col_names):
+    password = "kawin"
+    salt = b"1234567890"
+    print(type(df))
+    print(col_names[:5])
+    # First let us encrypt secret message
+    for i in range(5):
+        data = {}
+        for j in range(len(col_names)):
+            if sensitivity[j] == "1":
+                encrypted = encrypt(df.at[i+1, col_names[j]], password, salt)
+                data[col_names[j]] = encrypted
+            else:
+                data[col_names[j]] = df.at[i+1, col_names[j]]
+        print(data)
+
+    # Let us decrypt using our original password
+    decrypted = decrypt_message(encrypted, password)
+    print(bytes.decode(decrypted))
+
+
+def upload_file(request):
+    if request.method == 'POST':
+        form = UploadFileForm(request.POST, request.FILES)
+        if form.is_valid():
+            password = form.cleaned_data['password']
+            df, sensitivity, col_names = handle_uploaded_file(request.FILES['file'], password)
+            sensi = "".join(map(str, sensitivity))
+            print(sensi)
+            #encrypt(df, sensi, col_names)
+            return redirect('ui:encrypt', sensi)
+    else:
+        form = UploadFileForm()
+    return render(request, 'ui/upload.html', {'form': form})
 
 
 def decrypt_message(enc_dict, password):
@@ -398,15 +338,36 @@ def decrypt_message(enc_dict, password):
     decrypted = cipher.decrypt_and_verify(cipher_text, tag)
 
     return decrypted
-  
-def encrypt(df, sensitivity):
-    password = "kawin"
-    print(df)
-    # First let us encrypt secret message
-    encrypted = encrypt_message("The secretest message here", password)
-    print(encrypted)
 
-    # Let us decrypt using our original password
-    decrypted = decrypt_message(encrypted, password)
-    print(bytes.decode(decrypted))
+def main(request):
+    return render(request, 'ui/main.html')
 
+#def get_donor_data(blood_group, city):
+
+def find_donor(request):
+    if request.method == "POST":
+        form = FindDonorForm(request.POST)
+
+        if form.is_valid():
+            blood_group = form.cleaned_data['blood_group']
+            city = form.cleaned_data['city']
+
+            query = "SELECT * FROM c WHERE c.blood_group = '"+ blood_group +"' and c.district = '"+ city +"'"
+
+            password = "kawin"
+            data = list(container.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+            print(data)
+            dec_data = {}
+            for i in data:
+                for key, value in i.items():
+                    if type(value) is dict:
+                        dec_data[key] = decrypt_message(value, password)
+                    else:
+                        dec_data[key] = value
+            print(dec_data)
+            return HttpResponse(dec_data)
+    form = FindDonorForm()
+    return render(request, 'ui/find.html', {'form': form})
