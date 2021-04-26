@@ -1,2 +1,9 @@
+{% if msg %}
+    {{ msg }}
+{% endif %}
+
+
 <a  href= "{% url 'ui:upload' %}"  class="btn btn-secondary" >Upload Donor data</a>
+<a  href= "{% url 'ui:enter_stock' %}"  class="btn btn-secondary" >Enter Stock Details</a>
+<a  href= "{% url 'ui:view_stock' %}"  class="btn btn-secondary" >View Stock Details</a>
 <a  href= "{% url 'ui:find' %}"  class="btn btn-secondary" >Find Donor</a>

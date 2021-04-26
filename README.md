@@ -8,3 +8,9 @@ Server- django
 pymongo, djangorestframework
 azure-cosmos
 requests
+
+python manage.py runserver <ip>:<port>
+
+python manage.py makemigrations
+python manage.py sqlmigrate <app name> <migrate num>
+python manage.py migrate <app name>

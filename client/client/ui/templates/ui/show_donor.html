@@ -1,0 +1,6 @@
+{% for item in data%}
+    {{ item }}
+{% endfor %}
+
+<p>Request Donor Details from:</p>
+<a  href= "{% url 'ui:request_donor' bg=bg location=location%}"  class="btn btn-secondary" >Request Donor</a>

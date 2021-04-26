@@ -1,8 +1,10 @@
 from django import forms
 
 class RegisterForm(forms.Form):
-    user_name = forms.CharField(required=True, label='UserName', max_length=100)
-    password = forms.CharField(required=True, label='Password',  max_length=100, widget=forms.PasswordInput())
+    user_name   = forms.CharField(required=True, label='UserName', max_length=100)
+    password    = forms.CharField(required=True, label='Password',  max_length=100, widget=forms.PasswordInput())
+    bank_name   = forms.CharField(required=True, label='Blood Bank Name', max_length=100)
+    location    = forms.CharField(required=True, label='Location', max_length=100)
 
 class LoginForm(forms.Form):
     user_name = forms.CharField(required=True, label='UserName', max_length=100)
