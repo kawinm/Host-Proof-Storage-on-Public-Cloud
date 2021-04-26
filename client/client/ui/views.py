@@ -273,11 +273,10 @@ def handle_uploaded_file(request, f, password, action):
 
     container = get_db_container(action)
     start_time = time.time()
-
-    for i in range(45,55):
+    key  = request.session["key"]
+    for i in range(0,55):
         data = {}
         salt = get_random_bytes(AES.block_size)
-        data["salt"] = b64encode(salt).decode('utf-8')
         private_key = hashlib.scrypt(key.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
         for j in range(len(col_names)):
             if r_pred[j] == 1:
@@ -290,6 +289,8 @@ def handle_uploaded_file(request, f, password, action):
             else:
                 data[col_names[j]] = str(df.at[i+1, col_names[j]])
         #print(data)
+        data["salt"] = b64encode(salt).decode('utf-8')
+        #print(data["did"], salt, data["salt"], private_key)
         data["id"] = uuid4().hex
         data["bankid"] = bankid
         
@@ -334,25 +335,23 @@ def upload_file(request):
     return render(request, 'ui/upload.html', {'form': form})
 
 
-def decrypt_message(enc_dict, password):
+def decrypt_message(enc_dict, key, salt):
     # decode the dictionary entries from base64
-    salt = b64decode(enc_dict['salt'])
     cipher_text = b64decode(enc_dict['cipher_text'])
     nonce = b64decode(enc_dict['nonce'])
     tag = b64decode(enc_dict['tag'])
-    
 
     # generate the private key from the password and salt
-    private_key = hashlib.scrypt(
-        password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
+    #private_key = hashlib.scrypt(key.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
 
     # create the cipher config
-    cipher = AES.new(private_key, AES.MODE_GCM, nonce=nonce)
+    cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
 
     # decrypt the cipher text
     decrypted = cipher.decrypt_and_verify(cipher_text, tag)
 
-    return decrypted
+    
+    return str(decrypted)[2:-1]
 
 def main(request):
     if "file_upload" in request.session:
@@ -364,6 +363,10 @@ def main(request):
 #def get_donor_data(blood_group, city):
 
 def find_donor(request):
+    if 'key' in request.session:
+        secret_key  = request.session["key"]
+    else:
+        return redirect('ui:login')
     if request.method == "POST":
         form = FindDonorForm(request.POST)
 
@@ -374,21 +377,31 @@ def find_donor(request):
             query = "SELECT * FROM c WHERE c.blood_group = '"+ blood_group +"' and c.district = '"+ city +"'"
 
             container = get_db_container("donor")
-            password = "kawin"
             data = list(container.query_items(
                 query=query,
                 enable_cross_partition_query=True
             ))
-            print(data)
-            dec_data = {}
+            #print(data)
+            dec_resp = []
+            start_time = time.time()
             for i in data:
+                dec_data = {}
+                salt = b64decode(i['salt'])
+                private_key = hashlib.scrypt(secret_key.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
                 for key, value in i.items():
+                    if key == "salt":
+                        break
                     if type(value) is dict:
-                        dec_data[key] = decrypt_message(value, password)
+                        dec_data[key] = decrypt_message(value, private_key, salt)
                     else:
                         dec_data[key] = value
-            print(dec_data)
-            return render(request, 'ui/show_donor.html', {'data': dec_data, 'bg':blood_group, 'location':city})
+                    if dec_data[key] == "nan":
+                        dec_data[key] = "-"
+                dec_resp.append(dec_data)
+
+            print("--- %s seconds ---" % (time.time() - start_time))
+            print(dec_resp)
+            return render(request, 'ui/show_donor.html', {'headers':dec_resp[0], 'data': dec_resp, 'bg':blood_group, 'location':city})
     form = FindDonorForm()
     return render(request, 'ui/find.html', {'form': form})
 
@@ -397,8 +410,7 @@ def enter_stock(request):
         form = UploadFileForm(request.POST, request.FILES)
         if form.is_valid():
             password = form.cleaned_data['password']
-            df, sensitivity, col_names = handle_uploaded_file(request, request.FILES['file'], password, "stock")
-
+            df, sensitivity, col_names = hand
             request.session["file_upload"] = 1
             return redirect('ui:main')
     else:
@@ -526,3 +538,15 @@ def api_view_donor(request, bg, location):
                 dec_data[key] = value
     print(dec_data)
     return JsonResponse(dec_data)
+
+def delete_all(request):
+    query = "SELECT * FROM c "
+    
+    container = get_db_container("donor")
+    data = list(container.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+    for i in data:
+        response = container.delete_item(item=i["id"], partition_key=i["state"])
+    return "<p>OK</p>"

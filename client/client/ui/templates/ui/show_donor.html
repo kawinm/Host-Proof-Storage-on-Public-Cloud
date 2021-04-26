@@ -1,6 +1,26 @@
-{% for item in data%}
-    {{ item }}
-{% endfor %}
+<head>
 
-<p>Request Donor Details from:</p>
-<a  href= "{% url 'ui:request_donor' bg=bg location=location%}"  class="btn btn-secondary" >Request Donor</a>
+    <link href="//maxcdn.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    <script src="//maxcdn.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+</head>
+
+<table class="table table-bordered table-hover"> 
+<tr>
+    {% for key, values in headers.items %}
+    
+        <th class="bg-primary" scope="col">{{key|title}}</th>
+    
+    {% endfor %}
+</tr>
+
+{% for donor in data%}
+    <tr>
+    {% for key, values in donor.items %}
+    
+        <td>{{values|title}}</td>
+    
+    {% endfor %}
+    </tr>
+{% endfor %}
+</table>
