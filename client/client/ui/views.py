@@ -80,15 +80,44 @@ def index(request):
                 'username': username,
                 'g1': res['g1'],
                 'g2': res['g2'],
+                'x1': res['x1'],
+                'a1': res['a1'],
+                'a2': res['a2'],
+                'b1': res['b1'],
+                'y2': res['y2'],
                 'func': 'register',
                 'bankname': bankname,
                 'location': location
             }
             print(query)
-            response = requests.get('http://localhost:7071/api/S1', json = query)
-            print(response.json())
+            response_s1 = requests.get('http://localhost:8085/S1/register', json = query)
+            print(response_s1.json())
+
+            g3 = response_s1.json().get("g3")
+            g4 = response_s1.json().get("g4")
+
+            query = {
+                'g2powP': res['g2powP'],
+                'p': res['p'],
+                'username': username,
+                'g1': res['g1'],
+                'g2': res['g2'],
+                'g3': g3,
+                'g4': g4,
+                'x2': res['x2'],
+                'a1': res['a1'],
+                'a2': res['a2'],
+                'b2': res['b2'],
+                'y1': res['y1'],
+                'func': 'register',
+                'bankname': bankname,
+                'location': location
+            }
+            print(query)
+            response_s2 = requests.get('http://localhost:8086/S2/register', json = query)
+            print(response_s2.json())
             
-            bankid = response.json().get("id")
+            bankid = response_s1.json().get("id") + '-' + response_s2.json().get("id")
 
             user = User(user_name=username, p=res['p'], g1=res['g1'], g2=res['g2'], bank_name = bankname, location = location, bank_id = bankid)
             user.save()
@@ -138,14 +167,19 @@ def login(request):
             print("G1", user.g1) 
             print("G2", user.g2)  
 
-            g2powP = modexp(int(g2), int(P), int(p))
+            r = int(find_primitive_root(int(p)))
+
+            R1 = modexp(int(g1), int(r), int(p))
+
+            R2 = modexp(int(g2), int(P), int(p))
             query = {
-                'g2powP': g2powP,
                 'username': username,
-                'func': 'login'
+                'func': 'login',
+                'R1': R1,
+                'R2': R2
             }
             print(query)
-            response = requests.get('http://localhost:7071/api/S1', json = query)
+            response = requests.get('http://localhost:8085/S1/login', json = query)
             print(response.json())
 
             print("--- %s seconds ---" % (time.time() - start_time))    
