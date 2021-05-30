@@ -337,97 +337,111 @@ def index(request):
         username = req['username']
         g2powP = int(req['g2powP'])
 
-        if step == "register":
-            bankname = req['bankname']
-            location = req['location']
+        bankname = req['bankname']
+        location = req['location']
 
-            p = int(req['p'])
+        p = int(req['p'])
 
-            g1 = int(req['g1'])
-            g2 = int(req['g2'])
+        g1 = int(req['g1'])
+        g2 = int(req['g2'])
 
-            x1 = int(req['x1'])
+        x1 = int(req['x1'])
 
-            a1 = int(req['a1'])
-            a2 = int(req['a2'])
+        a1 = int(req['a1'])
+        a2 = int(req['a2'])
 
-            b1 = int(req['b1'])
-            y2 = int(req['y2'])
+        b1 = int(req['b1'])
 
-            g3 = int(find_primitive_root(p))
-            g4 = int(find_primitive_root(p))
-            print(g4)
-            print(g2powP)
-            print(p)
+        y1 = int(req['y1'])
+        y2 = int(req['y2'])
 
-            g4powg2powP = modexp(g4, g2powP, p)
-            g4pow2powP_str = str(g4powg2powP)
-            length = len(g4pow2powP_str)
-            length_for_x = length // 9
-            rem = length - length_for_x
-            vertex = []
-            for i in range(9):
-                x = int(g4pow2powP_str[i*length_for_x: i*length_for_x + length_for_x])
-                vertex.append(x)
-            u4 = int(g4pow2powP_str[length_for_x*9: ])
-            x4 = (vertex[0] + vertex[3] + vertex[6]) / 3 + u4
-            y4 = (vertex[1] + vertex[4] + vertex[7]) / 3 + u4
-            z4 = (vertex[2] + vertex[5] + vertex[8]) / 3 + u4
-            vertex.append(x4)
-            vertex.append(y4)
-            vertex.append(z4)
-            A = [[0,0,0],[0,0,0],[0,0,0]]
-            A[0][0] = vertex[3] - vertex[0]
-            A[1][0] = vertex[4] - vertex[1]
-            A[2][0] = vertex[5] - vertex[2]
+        g3 = int(find_primitive_root(p))
+        g4 = int(find_primitive_root(p))
+        print(g4)
+        print(g2powP)
+        print(p)
 
-            A[0][1] = vertex[6] - vertex[3]
-            A[1][1] = vertex[7] - vertex[4]
-            A[2][1] = vertex[8] - vertex[5]
+        g4powg2powP = modexp(g4, g2powP, p)
+        g4pow2powP_str = str(g4powg2powP)
+        length = len(g4pow2powP_str)
+        length_for_x = length // 9
+        rem = length - length_for_x
+        vertex = []
+        for i in range(9):
+            x = int(g4pow2powP_str[i*length_for_x: i*length_for_x + length_for_x])
+            vertex.append(x)
+        u4 = int(g4pow2powP_str[length_for_x*9: ])
+        x4 = (vertex[0] + vertex[3] + vertex[6]) / 3 + u4
+        y4 = (vertex[1] + vertex[4] + vertex[7]) / 3 + u4
+        z4 = (vertex[2] + vertex[5] + vertex[8]) / 3 + u4
+        vertex.append(x4)
+        vertex.append(y4)
+        vertex.append(z4)
+        A = [[0,0,0],[0,0,0],[0,0,0]]
+        A[0][0] = vertex[3] - vertex[0]
+        A[1][0] = vertex[4] - vertex[1]
+        A[2][0] = vertex[5] - vertex[2]
 
-            A[0][2] = x4 - vertex[6]
-            A[1][2] = y4 - vertex[7]
-            A[2][2] = z4 - vertex[8]
+        A[0][1] = vertex[6] - vertex[3]
+        A[1][1] = vertex[7] - vertex[4]
+        A[2][1] = vertex[8] - vertex[5]
 
-            B = [[0],[0],[0]]
-            B[0][0] = ((vertex[3]+vertex[4]+vertex[5]) - (vertex[0]+vertex[1]+vertex[2])) * 0.5
-            B[1][0] = ((vertex[6]+vertex[7]+vertex[8]) - (vertex[3]+vertex[4]+vertex[5])) * 0.5
-            B[2][0] = ((x4+y4+z4) - (vertex[6]+vertex[7]+vertex[8])) * 0.5
+        A[0][2] = x4 - vertex[6]
+        A[1][2] = y4 - vertex[7]
+        A[2][2] = z4 - vertex[8]
 
-            A_inv = getMatrixInverse(A)
+        B = [[0],[0],[0]]
+        B[0][0] = ((vertex[3]+vertex[4]+vertex[5]) - (vertex[0]+vertex[1]+vertex[2])) * 0.5
+        B[1][0] = ((vertex[6]+vertex[7]+vertex[8]) - (vertex[3]+vertex[4]+vertex[5])) * 0.5
+        B[2][0] = ((x4+y4+z4) - (vertex[6]+vertex[7]+vertex[8])) * 0.5
 
-            omega = matrix_multiplication(A_inv, B)
-            print(A)
-            print(A_inv)
-            print(B)
-            print(omega)
-            o = 0
-            for i in omega:
-                if i[0] < 0:
-                    i[0] *= -1
-                o += i[0]
-            omega = o
+        A_inv = getMatrixInverse(A)
 
-            A2 = modexp(int(g1), int(a2), int(p))
-            B2 = (modexp(int(g2), int(omega), int(p)) * modexp(int(y2), int(a2), int(p))) % int(p)
+        omega = matrix_multiplication(A_inv, B)
+        print(A)
+        print(A_inv)
+        print(B)
+        print(omega)
+        o = 0
+        for i in omega:
+            if i[0] < 0:
+                i[0] *= -1
+            o += i[0]
+        omega = o
 
-            print("A2 : ", A2)
-            print("B2 : ", B2)
-            
-            bankid = uuid4().hex
-            
-            #add_user(user)
-            server = Server(user_name=username, p=p, g1=g1, g2=g2, g3=g3, g4=g4, A2=A2, B2=B2, x1=x1, a1=a2, b1=y2, bankname = bankname, location = location, bankid = bankid)
-            server.save()
+        A2 = modexp(int(g1), int(a2), int(p))
+        B2 = (modexp(int(g2), int(omega), int(p)) * modexp(int(y2), int(a2), int(p))) % int(p)
 
+        print("A2 : ", A2)
+        print("B2 : ", B2)
+        
+        bankid = uuid4().hex
+
+        req['g3'] = g3
+        req['g4'] = g4
+
+        response_s2 = requests.get('http://localhost:8086/S2/register', json = req)
+        print(response_s2.json())
+
+        if response_s2.json().get("msg") == "failed":
             response = {
-                    'name': "s1",
-                    'msg' : "success",
-                    "id"  : str(bankid),
-                    "g3"  : g3,
-                    "g4"  : g4,
+                'name': "s1",
+                'msg' : "failed"
             }
             return JsonResponse(response)
+        
+        bankid = bankid + "-" + response_s2.json().get("id")
+        
+        #add_user(user)
+        server = Server(user_name=username, p=p, g1=g1, g2=g2, g3=g3, g4=g4, A2=A2, B2=B2, x1=x1, a1=a1, b1=y1, bankname = bankname, location = location, bankid = bankid)
+        server.save()
+
+        response = {
+                'name': "s1",
+                'msg' : "success",
+                "id"  : str(bankid),
+        }
+        return JsonResponse(response)
     except Exception as e:
         print(e)
         response = {
@@ -446,112 +460,107 @@ def login(request):
         R1 = int(req['R1'])
         R2 = int(req['R2'])
 
-        if step == "login":
-            server = Server.objects.get(user_name=username)
+        server = Server.objects.get(user_name=username)
 
-            p = int(server.p)
+        p = int(server.p)
 
-            g1 = int(server.g1)
-            g2 = int(server.g2)
-            g3 = int(server.g3)
-            g4 = int(server.g4)
+        g1 = int(server.g1)
+        g2 = int(server.g2)
+        g3 = int(server.g3)
+        g4 = int(server.g4)
 
-            A2 = int(server.A2)
-            B2 = int(server.B2)
+        A2 = int(server.A2)
+        B2 = int(server.B2)
 
-            a2 = int(server.a1)
-            y2 = int(server.b1)
+        x1 = int(server.x1)
 
-            r1 = int(find_primitive_root(p))
-            
-            g4powg2powP = modexp(g4, R2, p)
-            g4pow2powP_str = str(g4powg2powP)
-            length = len(g4pow2powP_str)
-            length_for_x = length // 9
-            rem = length - length_for_x
-            vertex = []
-            for i in range(9):
-                x = int(g4pow2powP_str[i*length_for_x: i*length_for_x + length_for_x])
-                vertex.append(x)
-            u4 = int(g4pow2powP_str[length_for_x*9: ])
-            x4 = (vertex[0] + vertex[3] + vertex[6]) / 3 + u4
-            y4 = (vertex[1] + vertex[4] + vertex[7]) / 3 + u4
-            z4 = (vertex[2] + vertex[5] + vertex[8]) / 3 + u4
-            vertex.append(x4)
-            vertex.append(y4)
-            vertex.append(z4)
-            A = [[0,0,0],[0,0,0],[0,0,0]]
-            A[0][0] = vertex[3] - vertex[0]
-            A[1][0] = vertex[4] - vertex[1]
-            A[2][0] = vertex[5] - vertex[2]
+        a1 = int(server.a1)
+        y1 = int(server.b1)
 
-            A[0][1] = vertex[6] - vertex[3]
-            A[1][1] = vertex[7] - vertex[4]
-            A[2][1] = vertex[8] - vertex[5]
+        r2 = int(find_primitive_root(p))
 
-            A[0][2] = x4 - vertex[6]
-            A[1][2] = y4 - vertex[7]
-            A[2][2] = z4 - vertex[8]
+        g4powg2powP = modexp(g4, R2, p)
+        g4pow2powP_str = str(g4powg2powP)
+        length = len(g4pow2powP_str)
+        length_for_x = length // 9
+        rem = length - length_for_x
+        vertex = []
+        for i in range(9):
+            x = int(g4pow2powP_str[i*length_for_x: i*length_for_x + length_for_x])
+            vertex.append(x)
+        u4 = int(g4pow2powP_str[length_for_x*9: ])
+        x4 = (vertex[0] + vertex[3] + vertex[6]) / 3 + u4
+        y4 = (vertex[1] + vertex[4] + vertex[7]) / 3 + u4
+        z4 = (vertex[2] + vertex[5] + vertex[8]) / 3 + u4
+        vertex.append(x4)
+        vertex.append(y4)
+        vertex.append(z4)
 
-            B = [[0],[0],[0]]
-            B[0][0] = ((vertex[3]+vertex[4]+vertex[5]) - (vertex[0]+vertex[1]+vertex[2])) * 0.5
-            B[1][0] = ((vertex[6]+vertex[7]+vertex[8]) - (vertex[3]+vertex[4]+vertex[5])) * 0.5
-            B[2][0] = ((x4+y4+z4) - (vertex[6]+vertex[7]+vertex[8])) * 0.5
+        centroid = [0,0,0]
+        for i in range(3):
+            centroid[i] = ( vertex[i] + vertex[i+3] + vertex[i+6] + vertex[i+9] ) /4
 
-            A_inv = getMatrixInverse(A)
+        line1 = ((vertex[-1] **2) + (vertex[-2] **2) + (vertex[-3] ** 2)) ** (1/2)
+        line2_points = [0,0,0]
+        for i in range(3):
+            line2_points[i] = (vertex[i+3] + vertex[i+6] + vertex[i+9] ) /3
+        line2 = ((line2_points[-1] **2) + (line2_points[-2] **2) + (line2_points[-3] ** 2)) ** (1/2)
 
-            omega = matrix_multiplication(A_inv, B)
-            print(A)
-            print(A_inv)
-            print(B)
-            print(omega)
-            o = 0
-            for i in omega:
-                if i[0] < 0:
-                    i[0] *= -1
-                o += i[0]
-            omega = int(o)
+        print(line1/line2)
+        if line1/line2 >= 1:
+            theta = degrees(acos(line1/line2 - (line1//line2)))
+        else:
+            theta = degrees(acos(line1/line2))
+        print(theta)
 
+        A1_dash = modexp(int(g1), int(a1), int(p))
+        B1_dash = (modexp(int(g2), int(theta), int(p)) * modexp(int(y1), int(a1), int(p))) % int(p)
 
-            A2_dash = modexp(int(g1), int(a2), int(p))
-            B2_dash = (modexp(int(g2), int(omega), int(p)) * modexp(int(y2), int(a2), int(p))) % int(p)
-            
+        print("A1 : ", A1_dash)
+        print("B1 : ", B1_dash)
 
-            print("A2 : ", A2_dash)
-            print("A2 : ", A2)
-            print("B2 : ", B2_dash)
-            print("B2 : ", B2)
-            
-            if not (A2 == A2_dash and B2 == B2_dash):
-                response = {
-                    'name': "s1",
-                    'msg' : "failed"
-                }
-                return JsonResponse(response)
+        query = {
+            'username': username,
+            'func': 'login',
+            'R1': R1,
+            'R2': R2,
+            'A1_d': A1_dash,
+            'B1_d': B1_dash
+        }
+        print(query)
+        response = requests.get('http://localhost:8086/S2/login', json = query)
+        print(response.json())
 
-            query = {
-                'username': username,
-                'func': 'login',
-                'R1': R1,
-                'R2': R2,
+        if response.json().get("msg") == "failed":
+            response = {
+                'name': "s1",
+                'msg' : "failed"
             }
-            print(query)
-            response = requests.get('http://localhost:8086/S2/login', json = query)
-            print(response.json())
-
-            if response.json().get("msg") == "success":
-                key = modexp(A2, B2, int(p))
-                response = {
-                    'name': "s1",
-                    'msg' : "success",
-                    'key' : key
-                }
-            else:
-                response = {
-                    'name': "s1",
-                    'msg' : "failed"
-                }
             return JsonResponse(response)
+
+        A2_dash = response.json().get("A2_d")
+        B2_dash = response.json().get("B2_d")
+                
+        if not (A2 == A2_dash and B2 == B2_dash):
+            response = {
+                'name': "s1",
+                'msg' : "failed"
+            }
+            return JsonResponse(response)
+
+        if response.json().get("msg") == "success":
+            key = modexp(A2, B2, int(p)) * R1
+            response = {
+                'name': "s1",
+                'msg' : "success",
+                'key' : key
+            }
+        else:
+            response = {
+                'name': "s1",
+                'msg' : "failed"
+            }
+        return JsonResponse(response)
     except Exception as e:
         print(e)
         response = {

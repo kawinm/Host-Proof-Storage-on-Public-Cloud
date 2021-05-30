@@ -81,9 +81,12 @@ def index(request):
                 'g1': res['g1'],
                 'g2': res['g2'],
                 'x1': res['x1'],
+                'x2': res['x2'],
                 'a1': res['a1'],
                 'a2': res['a2'],
                 'b1': res['b1'],
+                'b2': res['b2'],
+                'y1': res['y1'],
                 'y2': res['y2'],
                 'func': 'register',
                 'bankname': bankname,
@@ -92,32 +95,8 @@ def index(request):
             print(query)
             response_s1 = requests.get('http://localhost:8085/S1/register', json = query)
             print(response_s1.json())
-
-            g3 = response_s1.json().get("g3")
-            g4 = response_s1.json().get("g4")
-
-            query = {
-                'g2powP': res['g2powP'],
-                'p': res['p'],
-                'username': username,
-                'g1': res['g1'],
-                'g2': res['g2'],
-                'g3': g3,
-                'g4': g4,
-                'x2': res['x2'],
-                'a1': res['a1'],
-                'a2': res['a2'],
-                'b2': res['b2'],
-                'y1': res['y1'],
-                'func': 'register',
-                'bankname': bankname,
-                'location': location
-            }
-            print(query)
-            response_s2 = requests.get('http://localhost:8086/S2/register', json = query)
-            print(response_s2.json())
             
-            bankid = response_s1.json().get("id") + '-' + response_s2.json().get("id")
+            bankid = response_s1.json().get("id")
 
             user = User(user_name=username, p=res['p'], g1=res['g1'], g2=res['g2'], bank_name = bankname, location = location, bank_id = bankid)
             user.save()
@@ -182,6 +161,8 @@ def login(request):
             response = requests.get('http://localhost:8085/S1/login', json = query)
             print(response.json())
 
+            key = response.json()['key'] // R1
+            print("key: ", key)
             print("--- %s seconds ---" % (time.time() - start_time))    
             
             if response.json()['msg'] == "success":
