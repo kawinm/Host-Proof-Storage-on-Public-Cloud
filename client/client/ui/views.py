@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect
 
+import time
 # Create your views here.
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 
 from .forms import RegisterForm, LoginForm, UploadFileForm, FindDonorForm
 from .elgamal import *
@@ -26,7 +27,11 @@ import json
 from azure.cosmos import exceptions, CosmosClient, PartitionKey
 from uuid import uuid4
 
-def get_db_container():
+BANKID_TO_URL = {
+    "2522": "127.0.0.1"
+}
+
+def get_db_container(container_id):
     endpoint = "https://kawin.documents.azure.com:443/"
     key = 'U6VUfkGeu2vzNVKumpXsTWHkPyjbYi9ffmHmmsz9XUz6mqAwwcFTs7FAAzmb4ZF3SptDLFfs2vbCALrzimiJNQ=='
 
@@ -40,7 +45,7 @@ def get_db_container():
     except exceptions.CosmosResourceNotFoundError:
         print('A database with id \'{0}\' does not exist'.format(id))
 
-    id = "donor"
+    id = container_id
     try:
         container = db.get_container_client(id)
         print('Container with id \'{0}\' was found, it\'s link is {1}'.format(container.id, container.container_link))
@@ -57,16 +62,16 @@ def index(request):
         if form.is_valid():
             username = form.cleaned_data['user_name']
             password = form.cleaned_data['password']
+            bankname = form.cleaned_data['bank_name']
+            location = form.cleaned_data['location']
+
+            start_time = time.time()
 
             res = generate_keys(password)           
 
-            try:
-                user = User(user_name=username, p=res['p'], g1=res['g1'], g2=res['g2'])
-                user.save()
-
-                
-            except:
-                print("Username already exists")
+            # if username exits in db:
+            #     change username
+            #     return
             
             #s1(res, username)
             query = {
@@ -75,11 +80,26 @@ def index(request):
                 'username': username,
                 'g1': res['g1'],
                 'g2': res['g2'],
-                'func': 'register'
+                'x1': res['x1'],
+                'x2': res['x2'],
+                'a1': res['a1'],
+                'a2': res['a2'],
+                'b1': res['b1'],
+                'b2': res['b2'],
+                'y1': res['y1'],
+                'y2': res['y2'],
+                'func': 'register',
+                'bankname': bankname,
+                'location': location
             }
             print(query)
-            response = requests.get('http://localhost:7071/api/S1', json = query)
-            print(response.json())
+            response_s1 = requests.get('http://localhost:8085/S1/register', json = query)
+            print(response_s1.json())
+            
+            bankid = response_s1.json().get("id")
+
+            user = User(user_name=username, p=res['p'], g1=res['g1'], g2=res['g2'], bank_name = bankname, location = location, bank_id = bankid)
+            user.save()
             
             #Sending confirmation mail 
             """ current_site = get_current_site(request)
@@ -96,6 +116,7 @@ def index(request):
             )
             email.send()
             return HttpResponse('Please confirm your email address to complete the registration') """
+            print("--- %s seconds ---" % (time.time() - start_time))    
             return redirect('ui:login')
         else:
             message = 'Username is already registered.'
@@ -113,6 +134,8 @@ def login(request):
             username = form.cleaned_data['user_name']
             password = form.cleaned_data['password']
 
+            start_time = time.time()
+
             P = PasswordToHex(password)
             #user = User.objects.filter(user_name=username)
             user = User.objects.get(user_name=username)
@@ -123,17 +146,28 @@ def login(request):
             print("G1", user.g1) 
             print("G2", user.g2)  
 
-            g2powP = modexp(int(g2), int(P), int(p))
+            r = int(find_primitive_root(int(p)))
+
+            R1 = modexp(int(g1), int(r), int(p))
+
+            R2 = modexp(int(g2), int(P), int(p))
             query = {
-                'g2powP': g2powP,
                 'username': username,
-                'func': 'login'
+                'func': 'login',
+                'R1': R1,
+                'R2': R2
             }
             print(query)
-            response = requests.get('http://localhost:7071/api/S1', json = query)
+            response = requests.get('http://localhost:8085/S1/login', json = query)
             print(response.json())
 
+            key = response.json()['key'] // R1
+            print("key: ", key)
+            print("--- %s seconds ---" % (time.time() - start_time))    
+            
             if response.json()['msg'] == "success":
+                request.session['username'] = username
+                request.session['key'] = response.json()['key']
                 return redirect('ui:main')
             else:
                 message = 'Wrong Username or Password'
@@ -147,7 +181,7 @@ def login(request):
         form = LoginForm()
         return render(request, 'ui/login.html', {'form': form})
 
-def handle_uploaded_file(f, password):
+def handle_uploaded_file(request, f, password, action):
     df = pd.read_csv(f)
     print(type(df))
     row, col = df.shape 
@@ -240,110 +274,114 @@ def handle_uploaded_file(f, password):
 
     print("[STATUS] Sensitivity Prediction Successfull")
 
-    salt = b"1234567890"
+
     print(type(df))
     # First let us encrypt secret message
-    for i in range(2, 15):
+    if 'username' in request.session and 'key' in request.session:
+        username  = request.session["username"]
+        key       = request.session["key"]
+    else:
+        return redirect('ui:login')
+
+    user = User.objects.get(user_name=username)
+    bankid = user.bank_id
+
+    container = get_db_container(action)
+    start_time = time.time()
+    key  = request.session["key"]
+    for i in range(0,55):
         data = {}
+        salt = get_random_bytes(AES.block_size)
+        private_key = hashlib.scrypt(key.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
         for j in range(len(col_names)):
             if r_pred[j] == 1:
                 if col_names[j] == "id":
-                    encrypted = encrypt_message(df.at[i+1, col_names[j]], password, salt)
+                    encrypted = encrypt_message(df.at[i+1, col_names[j]], private_key, salt)
                     data["did"] = encrypted
                 else:
-                    encrypted = encrypt_message(df.at[i+1, col_names[j]], password, salt)
+                    encrypted = encrypt_message(df.at[i+1, col_names[j]], private_key, salt)
                     data[col_names[j]] = encrypted
             else:
                 data[col_names[j]] = str(df.at[i+1, col_names[j]])
-        print(data)
+        #print(data)
+        data["salt"] = b64encode(salt).decode('utf-8')
+        #print(data["did"], salt, data["salt"], private_key)
         data["id"] = uuid4().hex
-        container = get_db_container()
+        data["bankid"] = bankid
+        
         container.create_item(body=data)
+    print("--- %s seconds ---" % (time.time() - start_time))    
     return df, r_pred, col_names
 
-def encrypt_message(plain_text, password, salt):
+def encrypt_message(plain_text, key, salt):
     plain_text = str(plain_text)
     # generate a random salt
     #salt = get_random_bytes(AES.block_size) 16
 
     # use the Scrypt KDF to get a private key from the password
-    private_key = hashlib.scrypt(
-        password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
+    #private_key = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
     
     # create cipher config
-    cipher_config = AES.new(private_key, AES.MODE_GCM)
+    cipher_config = AES.new(key, AES.MODE_GCM)
 
     # return a dictionary with the encrypted text
     cipher_text, tag = cipher_config.encrypt_and_digest(bytes(plain_text, 'utf-8'))
     return {
         'cipher_text': b64encode(cipher_text).decode('utf-8'),
-        'salt': b64encode(salt).decode('utf-8'),
         'nonce': b64encode(cipher_config.nonce).decode('utf-8'),
         'tag': b64encode(tag).decode('utf-8')
     }
 
-def encrypt(df, sensitivity, col_names):
-    password = "kawin"
-    salt = b"1234567890"
-    print(type(df))
-    print(col_names[:5])
-    # First let us encrypt secret message
-    for i in range(5):
-        data = {}
-        for j in range(len(col_names)):
-            if sensitivity[j] == "1":
-                encrypted = encrypt(df.at[i+1, col_names[j]], password, salt)
-                data[col_names[j]] = encrypted
-            else:
-                data[col_names[j]] = df.at[i+1, col_names[j]]
-        print(data)
-
-    # Let us decrypt using our original password
-    decrypted = decrypt_message(encrypted, password)
-    print(bytes.decode(decrypted))
-
-
 def upload_file(request):
+    if 'key' in request.session:
+        key  = request.session["key"]
+    else:
+        return redirect('ui:login')
     if request.method == 'POST':
         form = UploadFileForm(request.POST, request.FILES)
         if form.is_valid():
             password = form.cleaned_data['password']
-            df, sensitivity, col_names = handle_uploaded_file(request.FILES['file'], password)
-            sensi = "".join(map(str, sensitivity))
-            print(sensi)
-            #encrypt(df, sensi, col_names)
-            return redirect('ui:encrypt', sensi)
+            df, sensitivity, col_names = handle_uploaded_file(request, request.FILES['file'], password, "donor")
+            
+            request.session["file_upload"] = 1
+            return redirect('ui:main')
     else:
         form = UploadFileForm()
     return render(request, 'ui/upload.html', {'form': form})
 
 
-def decrypt_message(enc_dict, password):
+def decrypt_message(enc_dict, key, salt):
     # decode the dictionary entries from base64
-    salt = b64decode(enc_dict['salt'])
     cipher_text = b64decode(enc_dict['cipher_text'])
     nonce = b64decode(enc_dict['nonce'])
     tag = b64decode(enc_dict['tag'])
-    
 
     # generate the private key from the password and salt
-    private_key = hashlib.scrypt(
-        password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
+    #private_key = hashlib.scrypt(key.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
 
     # create the cipher config
-    cipher = AES.new(private_key, AES.MODE_GCM, nonce=nonce)
+    cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
 
     # decrypt the cipher text
     decrypted = cipher.decrypt_and_verify(cipher_text, tag)
 
-    return decrypted
+    
+    return str(decrypted)[2:-1]
 
 def main(request):
+    if "file_upload" in request.session:
+        if request.session["file_upload"] == 1:
+            request.session["file_upload"] = 0
+            return render(request, 'ui/main.html', {"msg": "File Uploaded Successfully"})
     return render(request, 'ui/main.html')
 
 #def get_donor_data(blood_group, city):
 
 def find_donor(request):
+    if 'key' in request.session:
+        secret_key  = request.session["key"]
+    else:
+        return redirect('ui:login')
     if request.method == "POST":
         form = FindDonorForm(request.POST)
 
@@ -353,27 +391,177 @@ def find_donor(request):
 
             query = "SELECT * FROM c WHERE c.blood_group = '"+ blood_group +"' and c.district = '"+ city +"'"
 
-            container = get_db_container()
-            password = "kawin"
+            container = get_db_container("donor")
             data = list(container.query_items(
                 query=query,
                 enable_cross_partition_query=True
             ))
-            print(data)
-            dec_list = []
+            #print(data)
+            dec_resp = []
+            start_time = time.time()
             for i in data:
                 dec_data = {}
+                salt = b64decode(i['salt'])
+                private_key = hashlib.scrypt(secret_key.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
                 for key, value in i.items():
-                    if key == "id" or key[0] == "_":
-                        continue
+                    if key == "salt":
+                        break
                     if type(value) is dict:
-                        dec_data[key] = decrypt_message(value, password)
+                        dec_data[key] = decrypt_message(value, private_key, salt)
                     else:
                         dec_data[key] = value
                     if dec_data[key] == "nan":
                         dec_data[key] = "-"
-                dec_list.append(dec_data)
-            print(dec_list)
-            return render(request, 'ui/show.html', {'data': dec_list})
+                dec_resp.append(dec_data)
+
+            print("--- %s seconds ---" % (time.time() - start_time))
+            print(dec_resp)
+            return render(request, 'ui/show_donor.html', {'headers':dec_resp[0], 'data': dec_resp, 'bg':blood_group, 'location':city})
     form = FindDonorForm()
     return render(request, 'ui/find.html', {'form': form})
+
+def enter_stock(request):
+    if request.method == 'POST':
+        form = UploadFileForm(request.POST, request.FILES)
+        if form.is_valid():
+            password = form.cleaned_data['password']
+            df, sensitivity, col_names = hand
+            request.session["file_upload"] = 1
+            return redirect('ui:main')
+    else:
+        form = UploadFileForm()
+    return render(request, 'ui/upload.html', {'form': form})
+
+def view_stock(request):
+
+    if 'username' in request.session:
+        username  = request.session["username"]
+    else:
+        return redirect('ui:login')
+
+    user = User.objects.get(user_name=username)
+    bankid = user.bank_id
+
+    query = "SELECT * FROM c WHERE c.bankid = '"+ bankid +"'"
+
+    container = get_db_container("stock")
+    password = "kawin"
+    data = list(container.query_items(
+        query=query,
+        enable_cross_partition_query=True
+    ))
+    print(data)
+    dec_data = {}
+    for i in data:
+        for key, value in i.items():
+            if type(value) is dict:
+                dec_data[key] = decrypt_message(value, password)
+            else:
+                dec_data[key] = value
+    print(dec_data)
+    return render(request, 'ui/view_stock.html', {'data': dec_data})
+
+def request_donor(request, bg, location):
+    query = "SELECT bankid FROM c WHERE c.blood_group = '"+ bg +"' and c.location = '"+ location +"'"
+
+    container = get_db_container("donor")
+    password = "kawin"
+    data = list(container.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+            
+    dec_data = {}
+    for bank in data:
+        query = "SELECT bankname FROM c WHERE c.bankid = '"+ bank +"'"
+        container = get_db_container("users")
+        password = "kawin"
+        data = list(container.query_items(
+                    query=query,
+                    enable_cross_partition_query=True
+        ))
+        dec_data[bank] = data[0]
+
+    return render(request, 'ui/request_donor.html', {'data': dec_data})
+
+def api_view_stock(request, bg, location):
+    if 'username' in request.session:
+        username  = request.session["username"]
+    else:
+        return redirect('ui:login')
+
+    user = User.objects.get(user_name=username)
+    bankid = user.bank_id
+    bankname = user.bank_name
+
+    
+    if bg[-1] == "p":
+        bg = bg[:-1] + "+"
+    elif bg[-1] == "m":
+        bg = bg[:-1] + "-"
+
+    query = "SELECT c.blood_group, c.quantity, c.location, c.donated_on FROM c WHERE c.bankid = '"+ bankid +"' and c.blood_group = '"+ bg +"' and c.location = '"+ location +"'"
+
+    print(query)
+
+    container = get_db_container("stock")
+    password = "kawin"
+    data = list(container.query_items(
+        query=query,
+        enable_cross_partition_query=True
+    ))
+    print(data)
+    json_data = {}
+    dec_data = {}
+    cnt = 1
+    for i in data:
+        for key, value in i.items():
+            if type(value) is dict:
+                dec_data[key] = decrypt_message(value, password)
+            else:
+                dec_data[key] = value
+            dec_data["bankname"] = bankname
+        json_data[cnt] = dec_data
+        cnt+=1
+    print(json_data)
+    return JsonResponse(json_data)
+
+def api_view_donor(request, bg, location):
+    if bg[-1] == "p":
+        bg = bg[:-1] + "+"
+    elif bg[-1] == "m":
+        bg = bg[:-1] + "-"
+
+    query = "SELECT * FROM c WHERE c.bankid = '"+ bankid +"' and c.blood_group = '"+ bg +"' and c.location = '"+ location +"'"
+
+    print(query)
+    
+
+    container = get_db_container("donor")
+    password = "kawin"
+    data = list(container.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+    print(data)
+    dec_data = {}
+    for i in data:
+        for key, value in i.items():
+            if type(value) is dict:
+                dec_data[key] = decrypt_message(value, password)
+            else:
+                dec_data[key] = value
+    print(dec_data)
+    return JsonResponse(dec_data)
+
+def delete_all(request):
+    query = "SELECT * FROM c "
+    
+    container = get_db_container("donor")
+    data = list(container.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+    for i in data:
+        response = container.delete_item(item=i["id"], partition_key=i["state"])
+    return "<p>OK</p>"

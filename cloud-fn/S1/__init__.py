@@ -10,6 +10,9 @@ import json
 import hashlib
 from math import degrees, acos
 
+import hashlib
+from base64 import b64encode, b64decode
+
 from uuid import uuid4
 
 endpoint = "https://kawin.documents.azure.com:443/"
@@ -260,7 +263,6 @@ def add_user(user):
             logging.info('A container with id \'{0}\' does not exist'.format(id))
 
         logging.info('Creating Items')
-        logging.info('\n1.1 Create Item\n')
 
                 # Create a SalesOrder object. This object has nested properties and various types including numbers, DateTimes and strings.
                 # This can be saved as JSON as is without converting into rows/columns.
@@ -303,9 +305,6 @@ def get_user(username):
         except exceptions.CosmosResourceNotFoundError:
             logging.info('A container with id \'{0}\' does not exist'.format(id))
 
-        logging.info('Creating Items')
-        logging.info('\n1.1 Create Item\n')
-
                 # Create a SalesOrder object. This object has nested properties and various types including numbers, DateTimes and strings.
                 # This can be saved as JSON as is without converting into rows/columns.
         query = "SELECT * FROM c WHERE c.username = '"+ username +"'"
@@ -345,6 +344,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         g2powP = req.get_json().get('g2powP')
 
         if step == "register":
+            bankname = req.get_json().get('bankname')
+            location = req.get_json().get('location')
+
             p = req.get_json().get('p')
 
             g1 = req.get_json().get('g1')
@@ -419,8 +421,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 theta = degrees(acos(line1/line2))
             logging.info(theta)
 
+            bank_id = uuid4().hex
+
             user = {
-                    "id": uuid4().hex,
+                    "id": bank_id,
                     "username": username,
                     "g1": int(g1),
                     "g2": int(g2),
@@ -428,14 +432,18 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                     "g4": int(g4),
                     "p": int(p),
                     "omega": omega,
-                    "theta": theta
+                    "theta": theta,
+                    "location": location,
+                    "bankid": bank_id,
+                    "bankname": bankname
             }
             
             add_user(user)
 
             response = {
                     'name': "s",
-                    'msg' : "success"
+                    'msg' : "success",
+                    "id"  : str(bank_id)
             }
             return func.HttpResponse(body = json.dumps(response),
                             mimetype="application/json",
@@ -480,10 +488,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             A_inv = getMatrixInverse(A)
 
             omega = matrix_multiplication(A_inv, B)
-            print('A ', A)
-            print('A inv ', A_inv)
-            print('B ', B)
-            print('Omega ', omega)
+            logging.info(A)
+            logging.info( A_inv)
+            logging.info( B)
+            logging.info( omega)
             o = ""
             for i in omega:
                 o += str(i[0])
@@ -499,17 +507,21 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 line2_points[i] = (vertex[i+3] + vertex[i+6] + vertex[i+9] ) /3
             line2 = ((line2_points[-1] **2) + (line2_points[-2] **2) + (line2_points[-3] ** 2)) ** (1/2)
             
-            print(line1, line2, "slope", line1/line2)
             if line1/line2 > 1:
                 theta = degrees(acos(line1/line2 -1))
             else:
                 theta = degrees(acos(line1/line2))
-            print("Theta", theta)
+            logging.info( theta)
 
+            private_key = hashlib.scrypt(bytes(str(theta), 'utf-8'), salt=bytes(str(omega), 'utf-8'), n=2**14, r=8, p=1, dklen=32)
+
+            private_key = b64encode(private_key).decode('utf-8')
+            logging.info(private_key)
             auth = 0
             if user_data[0]['omega'] == omega:
                 if user_data[0]['theta'] == theta:
                     auth = 1
+            logging.info(auth)
             if auth == 0:
                 response = {
                     'name': "s",
@@ -521,12 +533,14 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             elif auth == 1:
                 response = {
                     'name': "s",
-                    'msg' : "success"
+                    'msg' : "success",
+                    'key' : private_key
                 }
                 return func.HttpResponse(body = json.dumps(response),
                             mimetype="application/json",
                     )
-    except:
+    except Exception as e:
+        logging.info(e)
         response = {
                     'name': "s",
                     'msg' : "failed"
