@@ -243,7 +243,7 @@ def handle_uploaded_file(f, password):
     salt = b"1234567890"
     print(type(df))
     # First let us encrypt secret message
-    for i in range(2):
+    for i in range(2, 15):
         data = {}
         for j in range(len(col_names)):
             if r_pred[j] == 1:
@@ -360,14 +360,20 @@ def find_donor(request):
                 enable_cross_partition_query=True
             ))
             print(data)
-            dec_data = {}
+            dec_list = []
             for i in data:
+                dec_data = {}
                 for key, value in i.items():
+                    if key == "id" or key[0] == "_":
+                        continue
                     if type(value) is dict:
                         dec_data[key] = decrypt_message(value, password)
                     else:
                         dec_data[key] = value
-            print(dec_data)
-            return HttpResponse(dec_data)
+                    if dec_data[key] == "nan":
+                        dec_data[key] = "-"
+                dec_list.append(dec_data)
+            print(dec_list)
+            return render(request, 'ui/show.html', {'data': dec_list})
     form = FindDonorForm()
     return render(request, 'ui/find.html', {'form': form})

@@ -1,0 +1,23 @@
+
+<table>
+    <th>
+        <td>Id</td>
+        <td>Name</td>
+        <td>Email</td>
+        <td>Blood Group</td>
+        <td>Date of Birth</td>
+        <td>Country</td>
+        <td>State</td>
+        <td>Country Code</td>
+        <td>District</td>
+        <td>Donated On</td>
+        <td>Blood Pressure</td>
+    </th>
+{% for donor in data %}
+    <tr>
+    {% for key, value in donor.items %}
+        <td> {{ value }} </td>
+    {% endfor %}
+    </tr>
+{% endfor %}
+</table>
